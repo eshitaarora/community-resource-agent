@@ -4,7 +4,7 @@ An intelligent, agentic AI system that helps vulnerable populations discover and
 
 ## 🎯 Problem Statement
 
-Over 600,000+ people experience homelessness in the India. Millions struggle with food insecurity, lack access to healthcare, and don't know where to find job training. Information about social services is fragmented, hard to discover, and often outdated. 
+Over ~1.77 million people experience homelessness in the India. Millions struggle with food insecurity, lack access to healthcare, and don't know where to find job training. Information about social services is fragmented, hard to discover, and often outdated. 
 
 **Our Solution:** An AI agent that acts like a knowledgeable social worker—understanding context, searching available resources, verifying relevance, and guiding people to help.
 
