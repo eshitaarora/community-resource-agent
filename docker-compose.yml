@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: community-resource-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: community_resources
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - community-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: community-resource-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - community-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: community-resource-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/community_resources
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4-turbo-preview
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE: ${TWILIO_PHONE:-}
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "True"
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000","http://localhost"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - community-network
+    command: >
+      sh -c "
+      python -m app.db.seed_data &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: community-resource-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8000/api
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+    networks:
+      - community-network
+
+  # Nginx Reverse Proxy (Optional, for production-like setup)
+  nginx:
+    image: nginx:alpine
+    container_name: community-resource-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - community-network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+
+networks:
+  community-network:
+    driver: bridge
